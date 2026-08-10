@@ -1029,6 +1029,7 @@
                 } finally {
                     curtainOverlay.style.opacity = '0';
                     curtainOverlay.pause();
+                    if (mocap) mocap.resume();
                 }
             } else {
                 await playSeamlessVideo("video/curtain.mp4", false, 'normal');
@@ -1063,7 +1064,6 @@
                     mocap.isPoseTriggerMode = true; // Enable pose match challenge!
                     mocap.activePoseKey = finalFigurine ? finalFigurine.poseKey : 'optimal_1';
                     mocap.matchStartTime = null;
-                    mocap.resume();
                 }
 
                 // IF USER IS ALREADY STILL (OR ABSENT), AUTO-PROCEED TO OUTRO!
@@ -1111,8 +1111,6 @@
             const matchedId = window.matchedFigurineId || 'white';
             const figurine = FIGURINES_DB[matchedId];
             const outroVid = figurine ? figurine.outroVideo : "video/white_outro.mp4";
-            
-            if (mocap) mocap.pause();
             console.log(`[State Machine] Playing outro video: ${outroVid}`);
             
             // Pick a random blessing from the 38 custom Tang blessings
@@ -1437,7 +1435,6 @@
             if (mocap) {
                 mocap.isPoseTriggerMode = false; // Disable trigger during active dance playback
                 mocap.matchStartTime = null;
-                mocap.pause();
             }
             
             // Hide "Prompt Dance" PNG
@@ -1463,7 +1460,6 @@
                     mocap.activePoseKey = 'spread_arms';
                     mocap.matchStartTime = null;
                     mocap.isPoseTriggerMode = true; // Enable gesture detection
-                    mocap.resume();
                 }
             };
             
@@ -1480,7 +1476,6 @@
             if (mocap) {
                 mocap.isPoseTriggerMode = false; // Disable gesture trigger while video is playing
                 mocap.matchStartTime = null;
-                mocap.pause();
             }
             
             const matchedId = window.matchedFigurineId || 'white';
@@ -1528,7 +1523,6 @@
                     mocap.activePoseKey = 'spread_arms';
                     mocap.matchStartTime = null;
                     mocap.isPoseTriggerMode = true;
-                    mocap.resume();
                 }
                 
                 // If user leaves or stays still for 5 seconds after transition, proceed to outro
