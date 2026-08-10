@@ -40,6 +40,7 @@ class MotionCaptureEngine {
         this.absenceStartTime = null; // Timer for user leaving frame
         this.isAbsent = true;         // Absence state flag (starts true so first detection triggers return)
         this.hasStarted = false;      // Track first valid frame
+        this.isPaused = false;        // CPU Saver: pause pose inference when not in interaction states
 
         
         // Callbacks to communicate with index.html frontend
@@ -168,7 +169,7 @@ class MotionCaptureEngine {
             try {
                 this.cameraHelper = new Camera(this.video, {
                     onFrame: async () => {
-                        if (this.isTracking && this.isModelReady && this.pose) {
+                        if (this.isTracking && this.isModelReady && this.pose && !this.isPaused) {
                             if (!this.firstFrameSent) {
                                 console.log("[Mocap Engine] ✅ First frame sent to MediaPipe Pose!");
                                 this.firstFrameSent = true;
@@ -234,6 +235,18 @@ class MotionCaptureEngine {
         console.log("Webcam tracking stopped.");
     }
     
+    pause() {
+        console.log("[Mocap Engine] Pausing pose tracking (skipping inference)...");
+        this.isPaused = true;
+    }
+    
+    resume() {
+        console.log("[Mocap Engine] Resuming pose tracking...");
+        this.isPaused = false;
+        this.stillStartTime = null;
+        this.absenceStartTime = null;
+    }
+    
     /**
      * Evaluates whether key landmarks indicate a real human is present in the frame
      */
@@ -288,7 +301,7 @@ class MotionCaptureEngine {
             const now = Date.now();
             if (!this.absenceStartTime) {
                 this.absenceStartTime = now;
-            } else if (now - this.absenceStartTime > 1000) { // 1.0 seconds absence
+            } else if (now - this.absenceStartTime > 5000) { // 5.0 seconds absence
                 if (!this.isAbsent) {
                     this.isAbsent = true;
                     console.log("[Mocap Engine] User is ABSENT (no human detected)");

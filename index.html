@@ -210,11 +210,14 @@
                 
                 <!-- 2b. Pre-rendered Video Player Overlay (for awakening dance) -->
                 <!-- 2b. Pre-rendered Video Player Overlays (Double Buffer for Seamless Crossfading) -->
-                <video id="videoPlayerA" class="absolute inset-0 w-full h-full object-contain z-20 opacity-100 transition-opacity duration-300 pointer-events-none" src="video/intro.mp4" muted autoplay loop playsinline></video>
-                <video id="videoPlayerB" class="absolute inset-0 w-full h-full object-contain z-20 opacity-0 transition-opacity duration-300 pointer-events-none" muted autoplay loop playsinline></video>
+                <video id="videoPlayerA" class="absolute inset-0 w-full h-full object-contain z-20 opacity-100 transition-opacity duration-300 pointer-events-none" style="transform: translateZ(0); will-change: opacity;" src="video/intro.mp4" muted autoplay loop playsinline></video>
+                <video id="videoPlayerB" class="absolute inset-0 w-full h-full object-contain z-20 opacity-0 transition-opacity duration-300 pointer-events-none" style="transform: translateZ(0); will-change: opacity;" muted autoplay loop playsinline></video>
                 
                 <!-- OVERLAY player for the Opening Curtain (mix-blend-mode: screen makes black transparent) -->
-                <video id="curtainOverlayPlayer" class="absolute inset-0 w-full h-full object-contain z-30 opacity-0 pointer-events-none" style="mix-blend-mode: screen; transition: opacity 300ms ease-in-out;" muted playsinline preload="auto" src="video/curtain.mp4"></video>
+                <video id="curtainOverlayPlayer" class="absolute inset-0 w-full h-full object-contain z-30 opacity-0 pointer-events-none" style="mix-blend-mode: screen; transition: opacity 300ms ease-in-out; transform: translateZ(0); will-change: opacity, mix-blend-mode;" muted playsinline preload="auto" src="video/curtain.mp4"></video>
+                
+                <!-- Global Audio Player for synced BGM -->
+                <audio id="globalBgmPlayer" class="hidden" preload="auto"></audio>
                 
                 <!-- NEW: Prompt Overlays (Dance and Material) -->
                 <img id="promptDanceImg" class="hidden absolute inset-0 w-full h-full object-contain z-30 transition-opacity duration-500 opacity-0 pointer-events-none" src="final_vid/prompt_dance.png" alt="提示跳舞" />
@@ -302,12 +305,8 @@
 
     </div>
 
-    <!-- --- HIDDEN AUDIO ELEMENT FOR WEBAUDIO API MUSIC MIXING --- -->
-    <!-- Standard upbeat test track URL (reliable CDN) -->
-    <audio id="bg-music" loop crossorigin="anonymous" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
-
     <!-- --- LINK LOCAL WEBGL/MOTION CAPTURE scripts (with cache busters) --- -->
-    <script src="motion_capture.js?v=118"></script>
+    <script src="motion_capture.js?v=20260810_v2"></script>
 
     <!-- --- FIGURINES DATABASE (Carousel Exhibit Database) --- -->
     <script>
@@ -418,6 +417,89 @@
 
     <!-- --- ORCHESTRATOR CORE SCRIPT --- -->
     <script>
+        // --- AUDIO SYNC UTILITIES ---
+        let globalAudioPlayer = null;
+        
+        function getAudioForVideo(videoSrc) {
+            if (!videoSrc) return null;
+            // Extract filename without path and extension
+            const filename = videoSrc.split('/').pop().split('.').shift();
+            
+            let mapped = filename;
+            
+            // 1. Map character-specific filenames to generic 'color' equivalents
+            const colors = ['red', 'blue', 'black', 'white', 'gray'];
+            colors.forEach(color => {
+                if (mapped === `${color}_dance`) mapped = 'color_dance';
+                if (mapped === `${color}_to_big`) mapped = 'color_to_big';
+                if (mapped === `stripe_to_${color}`) mapped = 'stripe_to_color';
+                if (mapped === `reveal_${color}`) mapped = 'reveal_color';
+                if (mapped === `${color}_outro`) mapped = 'color_outro';
+            });
+            
+            // 2. Map curtain opening to curtain
+            if (mapped === 'curtain') {
+                mapped = 'curtain';
+            }
+            // Map curtain closing to stripe_to_color BGM (so it continues playing from outro)
+            if (mapped === 'curtain_close') {
+                mapped = 'stripe_to_color';
+            }
+            
+            // 3. Alias mappings for silent videos (reuse existing audios)
+            if (mapped === 'reveal_color') {
+                mapped = 'curtain'; // Reuse curtain.mp3 for reveal
+            }
+            if (mapped === 'color_outro') {
+                mapped = 'stripe_to_color'; // Reuse stripe_to_color.mp3 for outro
+            }
+            
+            const AVAILABLE_AUDIOS = [
+                'big_flower_to_round',
+                'blue_flower_to_stripe',
+                'color_dance',
+                'color_to_big',
+                'curtain',
+                'intro',
+                'round_to_blue_flower',
+                'stripe_to_color'
+            ];
+            
+            if (AVAILABLE_AUDIOS.includes(mapped)) {
+                return `assets/audio/${mapped}.mp3`;
+            }
+            return null;
+        }
+
+        function syncAudioWithVideo(videoSrc, loop = false, seekTime = 0, speed = 1.0) {
+            if (!globalAudioPlayer) {
+                globalAudioPlayer = document.getElementById('globalBgmPlayer');
+            }
+            if (!globalAudioPlayer) return;
+            
+            const audioSrc = getAudioForVideo(videoSrc);
+            if (audioSrc) {
+                // If this BGM is already playing, let it continue without restarting!
+                if (globalAudioPlayer.src && globalAudioPlayer.src.includes(audioSrc) && !globalAudioPlayer.paused) {
+                    console.log(`[Audio Sync] BGM ${audioSrc} is already playing. Continuing...`);
+                    globalAudioPlayer.loop = true;
+                    globalAudioPlayer.playbackRate = speed;
+                    return;
+                }
+                console.log(`[Audio Sync] Playing BGM: ${audioSrc} (loop=true, seek=${seekTime}s, speed=${speed}x)`);
+                globalAudioPlayer.src = audioSrc;
+                globalAudioPlayer.loop = true;
+                globalAudioPlayer.volume = 0.6;
+                globalAudioPlayer.currentTime = seekTime;
+                globalAudioPlayer.playbackRate = speed; // Sync audio playback speed
+                globalAudioPlayer.play().catch(e => console.warn("[Audio Sync] Play failed:", e));
+            } else {
+                console.log(`[Audio Sync] No matching BGM for ${videoSrc}. Stopping audio.`);
+                globalAudioPlayer.pause();
+                globalAudioPlayer.src = "";
+            }
+        }
+
         // --- REMARKABLE ON-SCREEN DEBUG LOGGER INTERCEPTOR ---
         (function() {
             window.addEventListener('DOMContentLoaded', () => {
@@ -521,7 +603,6 @@
 
         let mocap = null;
         let webcamElement = document.getElementById('webcam');
-        let bgMusicElement = document.getElementById('bg-music');
         let webcamStream = null;
 
         // Beautiful Toast Notification Helper
@@ -614,6 +695,7 @@
 
         window.matchedFigurineId = 'optimal_1';
         window.aiBlessing = '岁岁平安，万事大吉';
+        window.enableVLM = false;
 
         // Call resetKiosk immediately when DOM is ready so video/intro.mp4 plays instantly without waiting for webcam
         document.addEventListener('DOMContentLoaded', () => {
@@ -663,7 +745,7 @@
         /**
          * Seamless Double-Buffered Video Player Helper
          */
-        function playSeamlessVideo(src, loop = false, blendMode = 'normal', onendedCallback = null) {
+        function playSeamlessVideo(src, loop = false, blendMode = 'normal', onendedCallback = null, freezeTimeRemaining = 0.06) {
             return new Promise((resolve, reject) => {
                 const playerA = document.getElementById('videoPlayerA');
                 const playerB = document.getElementById('videoPlayerB');
@@ -692,14 +774,12 @@
                 nextPlayer.loop = loop;
                 nextPlayer.style.mixBlendMode = blendMode;
                 nextPlayer.currentTime = 0;
+                nextPlayer.playbackRate = 1.0; // Reset playback rate
                 nextPlayer.ontimeupdate = null; // Clear old listeners
+                nextPlayer.onended = null;
                 
-                // Mute status - standby loop must be muted for Chrome autoplay
-                if (src.includes("intro.mp4") || src.includes("0_standby.mp4")) {
-                    nextPlayer.muted = true;
-                } else {
-                    nextPlayer.muted = false;
-                }
+                // Mute all videos to avoid browser autoplay/concurrency restrictions
+                nextPlayer.muted = true;
                 
                 let isFinished = false;
                 const finish = () => {
@@ -715,6 +795,9 @@
                     nextPlayer.classList.add('opacity-100');
                     nextPlayer.style.opacity = '1';
                     
+                    // Sync audio BGM
+                    syncAudioWithVideo(src, loop);
+                    
                     // Always hide static stage image once active video begins rendering
                     const stageImg = document.getElementById('stageFigurineImg');
                     if (stageImg) {
@@ -725,7 +808,7 @@
 
                     // Smoothly fade out curtain overlay (e.g. after curtain_close completes)
                     const curtainOverlay = document.getElementById('curtainOverlayPlayer');
-                    if (curtainOverlay && curtainOverlay.style.opacity === '1' && !src.includes('curtain.mp4')) {
+                    if (curtainOverlay && parseFloat(curtainOverlay.style.opacity) > 0 && !src.includes('curtain.mp4')) {
                         curtainOverlay.style.transition = 'opacity 500ms ease-in-out';
                         curtainOverlay.style.opacity = '0';
                         setTimeout(() => { try { curtainOverlay.pause(); } catch(e){} }, 500);
@@ -744,10 +827,30 @@
                 };
                 
                 if (!loop) {
+                    const onEndedFallback = () => {
+                        nextPlayer.ontimeupdate = null;
+                        nextPlayer.onended = null;
+                        console.log(`[Video Loading 🏁] Video ended (native ended event): ${src}`);
+                        try {
+                            nextPlayer.currentTime = Math.max(0, nextPlayer.duration - freezeTimeRemaining);
+                            nextPlayer.playbackRate = 0.1;
+                        } catch(e) {
+                            console.warn("Failed to seek back on ended fallback:", e);
+                        }
+                        if (onendedCallback) onendedCallback();
+                        finish();
+                    };
+                    nextPlayer.onended = onEndedFallback;
+
                     nextPlayer.ontimeupdate = function() {
-                        if (nextPlayer.duration > 0.5 && nextPlayer.currentTime >= nextPlayer.duration - 0.06) {
-                            nextPlayer.ontimeupdate = null; // One-shot
-                            nextPlayer.pause(); // FREEZE AT LAST FRAME TO PREVENT BLACK SCREEN!
+                        if (!window.lastPlayProgressLog || Date.now() - window.lastPlayProgressLog > 1000) {
+                            console.log(`[Play Progress] ${src}: current=${nextPlayer.currentTime.toFixed(2)}, duration=${nextPlayer.duration.toFixed(2)}, paused=${nextPlayer.paused}, speed=${nextPlayer.playbackRate}`);
+                            window.lastPlayProgressLog = Date.now();
+                        }
+                        if (nextPlayer.duration > 0.5 && nextPlayer.currentTime >= nextPlayer.duration - freezeTimeRemaining) {
+                            nextPlayer.ontimeupdate = null;
+                            nextPlayer.onended = null;
+                            nextPlayer.playbackRate = 0.1;
                             console.log(`[Video Loading 🏁] Video ended (frozen on last frame): ${src}`);
                             if (onendedCallback) onendedCallback();
                             finish();
@@ -832,6 +935,7 @@
                 mocap.isPoseTriggerMode = false;
                 mocap.spinState = 0;
                 mocap.isStill = false;
+                mocap.resume();
             }
 
             // 6. Reset matched figurine to default
@@ -854,6 +958,7 @@
             console.log("[State Machine] Starting cinematic flow -> INTRO_REVEAL");
             currentState = AppState.INTRO_REVEAL;
             window.isColorLocked = true; // Lock color prediction so late background samples cannot overwrite matched color!
+            if (mocap) mocap.pause();
             
             // Hide start overlay so it's not clickable anymore
             const startOverlay = document.getElementById('startOverlay');
@@ -864,25 +969,12 @@
             const matchedId = window.matchedFigurineId || 'white';
             const figurine = FIGURINES_DB[matchedId] || FIGURINES_DB['white'];
             
-            // Preload spin videos for this figurine immediately
-            preloadSpinVideos(figurine.id);
-
             const stageImg = document.getElementById('stageFigurineImg');
             const curtainOverlay = document.getElementById('curtainOverlayPlayer');
             const playerA = document.getElementById('videoPlayerA');
             const playerB = document.getElementById('videoPlayerB');
 
-            // PRE-BUFFER REVEAL VIDEO ON INACTIVE PLAYER WHILE CURTAIN OPENS (0ms INSTANT PLAYBACK!)
-            const targetPlayer = (activePlayer === playerA) ? playerB : playerA;
-            if (targetPlayer && figurine.revealVideo) {
-                const cleanSrc = figurine.revealVideo.split('?')[0];
-                if (!targetPlayer.src || !targetPlayer.src.includes(cleanSrc)) {
-                    targetPlayer.src = `${figurine.revealVideo}?v=20260810_fresh`;
-                    targetPlayer.preload = "auto";
-                    targetPlayer.load();
-                    console.log(`[Video Preload 🚀] Pre-buffering reveal video while curtain opens: ${targetPlayer.src} on ${targetPlayer.id}`);
-                }
-            }
+
 
             // PRE-STAGE 0s SILHOUETTE IMAGE IMMEDIATELY AT z-25 (0ms Instant Display, No Black Gap)
             if (stageImg) {
@@ -903,14 +995,22 @@
                 curtainOverlay.style.zIndex = '30';
                 curtainOverlay.style.mixBlendMode = 'screen'; // Screen mode makes black background transparent so stageImg at z-25 shows cleanly!
                 curtainOverlay.muted = true;
-                curtainOverlay.style.opacity = '1';
+                curtainOverlay.style.opacity = '0.99';
                 
                 try {
                     await new Promise((resolve) => {
-                        curtainOverlay.onended = resolve;
+                        let resolved = false;
+                        const safeResolve = () => {
+                            if (resolved) return;
+                            resolved = true;
+                            resolve();
+                        };
+                        curtainOverlay.onended = safeResolve;
+                        setTimeout(safeResolve, 3500);
                         
                         curtainOverlay.onplaying = () => {
-                            curtainOverlay.style.opacity = '1';
+                            curtainOverlay.style.opacity = '0.99';
+                            syncAudioWithVideo("video/curtain.mp4", false);
                             
                             // Smoothly fade out ONLY active standby video underneath over 500ms
                             const standbyPlayer = activePlayer;
@@ -949,6 +1049,7 @@
             const showPromptCallback = () => {
                 console.log("[State Machine] Reveal video ended -> STANDBY_WAIT (Raise Left Hand Challenge)");
                 currentState = AppState.STANDBY_WAIT;
+                syncAudioWithVideo(null);
                 
                 // Show "Prompt Dance" PNG at the very end
                 const promptDance = document.getElementById('promptDanceImg');
@@ -962,29 +1063,36 @@
                     mocap.isPoseTriggerMode = true; // Enable pose match challenge!
                     mocap.activePoseKey = finalFigurine ? finalFigurine.poseKey : 'optimal_1';
                     mocap.matchStartTime = null;
+                    mocap.resume();
                 }
 
                 // IF USER IS ALREADY STILL (OR ABSENT), AUTO-PROCEED TO OUTRO!
                 if (mocap && (mocap.isStill || mocap.isAbsent)) {
-                    console.log("[State Machine] User is already still/absent upon entering STANDBY_WAIT -> Starting OUTRO_VIDEO in 1.5s...");
+                    console.log("[State Machine] User is already still/absent upon entering STANDBY_WAIT -> Starting OUTRO_VIDEO in 5s...");
                     setTimeout(() => {
                         if (currentState === AppState.STANDBY_WAIT) {
                             playOutroVideo();
                         }
-                    }, 1500);
+                    }, 5000);
                 } else {
-                    // Fallback safety timeout: If user doesn't raise hand or move within 6 seconds, auto-proceed to OUTRO_VIDEO!
+                    // Fallback safety timeout: If user doesn't raise hand or move within 5 seconds, auto-proceed to OUTRO_VIDEO!
                     if (window.idleOutroTimer) clearTimeout(window.idleOutroTimer);
                     window.idleOutroTimer = setTimeout(() => {
                         if (currentState === AppState.STANDBY_WAIT || currentState === AppState.WAITING_FOR_SPIN) {
-                            console.log("[State Machine] Idle 6s timeout in challenge state -> Auto-starting OUTRO_VIDEO...");
+                            console.log("[State Machine] Idle 5s timeout in challenge state -> Auto-starting OUTRO_VIDEO...");
                             playOutroVideo();
                         }
-                    }, 6000);
+                    }, 5000);
                 }
             };
             
             try {
+                // Delay spin videos preload by 2 seconds so the reveal video starts playing smoothly first
+                setTimeout(() => {
+                    if (currentState === AppState.INTRO_REVEAL) {
+                        preloadSpinVideos(finalFigurine.id);
+                    }
+                }, 2000);
                 await playSeamlessVideo(finalFigurine.revealVideo, false, 'normal', showPromptCallback);
             } catch (e) {
                 console.error("[State Machine] Play reveal video failed:", e);
@@ -1004,6 +1112,7 @@
             const figurine = FIGURINES_DB[matchedId];
             const outroVid = figurine ? figurine.outroVideo : "video/white_outro.mp4";
             
+            if (mocap) mocap.pause();
             console.log(`[State Machine] Playing outro video: ${outroVid}`);
             
             // Pick a random blessing from the 38 custom Tang blessings
@@ -1011,6 +1120,10 @@
             const blessingOverlay = document.getElementById('outroBlessingOverlay');
             const blessingText = document.getElementById('outroBlessingText');
             
+            if (blessingOverlay) {
+                blessingOverlay.style.opacity = '';
+                blessingOverlay.style.transition = '';
+            }
             if (blessingOverlay && blessingText) {
                 let line1 = randomBlessing;
                 let line2 = "";
@@ -1030,13 +1143,32 @@
             }
 
             let blessingShown = false;
-            let curtainTriggered = false;
             let currentMonitorPlayer = null;
 
             // Monitor active player playback time
             const timeMonitor = () => {
-                if (!currentMonitorPlayer || currentMonitorPlayer.duration <= 0) return;
+                if (!currentMonitorPlayer) {
+                    if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 1000) {
+                        console.log("[State Machine] timeMonitor: currentMonitorPlayer is NULL");
+                        window.lastTimeMonitorLog = Date.now();
+                    }
+                    return;
+                }
+                if (currentMonitorPlayer.duration <= 0 || isNaN(currentMonitorPlayer.duration)) {
+                    if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 1000) {
+                        console.log(`[State Machine] timeMonitor: invalid duration=${currentMonitorPlayer.duration}, readyState=${currentMonitorPlayer.readyState}`);
+                        window.lastTimeMonitorLog = Date.now();
+                    }
+                    return;
+                }
+                
                 const remaining = currentMonitorPlayer.duration - currentMonitorPlayer.currentTime;
+
+                // Throttled progress log
+                if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 500) {
+                    console.log(`[State Machine] timeMonitor: remaining=${remaining.toFixed(2)}, current=${currentMonitorPlayer.currentTime.toFixed(2)}, duration=${currentMonitorPlayer.duration.toFixed(2)}, paused=${currentMonitorPlayer.paused}`);
+                    window.lastTimeMonitorLog = Date.now();
+                }
 
                 // 1. Show blessing text ONLY at the last 2.0 seconds of the outro video!
                 if (remaining <= 2.0 && !blessingShown && blessingOverlay) {
@@ -1048,35 +1180,26 @@
                     blessingOverlay.classList.remove('opacity-0');
                     blessingOverlay.classList.add('opacity-100');
                 }
-
-                // 2. Start closing curtain video AT THE EXACT LAST 1.8 SECONDS of the outro video!
-                if (remaining <= 1.8 && !curtainTriggered) {
-                    curtainTriggered = true;
-                    console.log(`[State Machine] Outro video last 1.8s -> Seamlessly closing blue curtain...`);
-                    closeCurtainOverlay();
-                }
             };
 
             const intervalId = setInterval(timeMonitor, 100);
 
             try {
+                // Play outro video normally to the end (default 0.06s freeze is fine, it will be black)
                 const outroPromise = playSeamlessVideo(outroVid, false, 'normal');
                 currentMonitorPlayer = activePlayer;
                 await outroPromise;
+                console.log("[State Machine] Outro video finished (faded to black). Proceeding to curtain close...");
             } catch (e) {
                 console.error("[State Machine] Play outro failed:", e);
             } finally {
                 clearInterval(intervalId);
             }
             
-            // Wait for curtain_close.mp4 to complete if it was triggered
-            const curtainOverlay = document.getElementById('curtainOverlayPlayer');
-            if (curtainOverlay && !curtainOverlay.paused && !curtainOverlay.ended) {
-                await new Promise((resolve) => {
-                    curtainOverlay.onended = resolve;
-                    setTimeout(resolve, 3800); // Safety fallback
-                });
-            }
+            // Play curtain close sequentially (opaque curtain over black background)
+            console.log("[State Machine] Starting curtain close...");
+            await closeCurtainOverlay(1.0, 4.0);
+            console.log("[State Machine] Curtain close finished.");
 
             // Right when curtain is completely closed -> smoothly fade out white blessing text over 800ms
             if (blessingOverlay) {
@@ -1097,23 +1220,48 @@
         /**
          * Plays video/curtain_close.mp4 to close the curtain over the stage with solid blue opacity
          */
-        async function closeCurtainOverlay() {
+        async function closeCurtainOverlay(speed = 1.0, startTime = 4.0) {
             const curtainOverlay = document.getElementById('curtainOverlayPlayer');
+            if (activePlayer) {
+                console.log(`[DEBUG] activePlayer (${activePlayer.id}): opacity=${activePlayer.style.opacity}, classList=${activePlayer.className}, paused=${activePlayer.paused}, currentTime=${activePlayer.currentTime}`);
+            }
             if (!curtainOverlay) return;
             
             curtainOverlay.src = "video/curtain_close.mp4";
-            curtainOverlay.currentTime = 0;
+            curtainOverlay.currentTime = startTime;
             curtainOverlay.style.zIndex = '30';
-            curtainOverlay.style.mixBlendMode = 'screen'; // Screen mode makes black background transparent so outro video shows through underneath!
+            curtainOverlay.style.mixBlendMode = 'normal';
             curtainOverlay.muted = true;
-            curtainOverlay.style.opacity = '1';
+            curtainOverlay.style.opacity = '1.0';
+            curtainOverlay.playbackRate = speed;
+            
+            const remainingPlayTime = (6.90 - startTime) / speed;
+            const timeoutMs = (remainingPlayTime + 0.6) * 1000;
             
             try {
                 await new Promise((resolve) => {
-                    curtainOverlay.onended = resolve;
+                    let resolved = false;
+                    const finish = () => {
+                        if (!resolved) {
+                            resolved = true;
+                            clearTimeout(safetyTimeout);
+                            curtainOverlay.onplaying = null;
+                            curtainOverlay.onended = null;
+                            resolve();
+                        }
+                    };
+                    const safetyTimeout = setTimeout(() => {
+                        console.warn(`curtain close onended timeout fallback triggered (speed=${speed}, start=${startTime})`);
+                        finish();
+                    }, timeoutMs); 
+                    
+                    curtainOverlay.onplaying = () => {
+                        syncAudioWithVideo("video/curtain_close.mp4", false, startTime, speed);
+                    };
+                    curtainOverlay.onended = finish;
                     curtainOverlay.play().catch(e => {
                         console.warn("curtain close play failed:", e);
-                        resolve();
+                        finish();
                     });
                 });
             } catch(e) {
@@ -1214,7 +1362,7 @@
                     if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("success", "手动触发舞蹈");
                     window.onUserSpin();
                 }
-                else if (currentState === AppState.SPIN_VIDEO) {
+                else if (currentState === AppState.SPIN_LOOPING) {
                     console.log("[State Machine] 🖱️ MANUAL CLICK BYPASS: Trigger Stillness (End)!");
                     if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("success", "手动触发结束");
                     if (typeof window.onUserStill === 'function') window.onUserStill(true);
@@ -1289,6 +1437,7 @@
             if (mocap) {
                 mocap.isPoseTriggerMode = false; // Disable trigger during active dance playback
                 mocap.matchStartTime = null;
+                mocap.pause();
             }
             
             // Hide "Prompt Dance" PNG
@@ -1307,12 +1456,14 @@
                 }
                 console.log(`[State Machine] Dance video ended. Transitioning to WAITING_FOR_SPIN. Waiting for user to spread arms.`);
                 currentState = AppState.WAITING_FOR_SPIN;
+                syncAudioWithVideo(null);
                 
                 // Switch pose detection to "spread_arms" to trigger material change
                 if (mocap) {
                     mocap.activePoseKey = 'spread_arms';
                     mocap.matchStartTime = null;
                     mocap.isPoseTriggerMode = true; // Enable gesture detection
+                    mocap.resume();
                 }
             };
             
@@ -1329,6 +1480,7 @@
             if (mocap) {
                 mocap.isPoseTriggerMode = false; // Disable gesture trigger while video is playing
                 mocap.matchStartTime = null;
+                mocap.pause();
             }
             
             const matchedId = window.matchedFigurineId || 'white';
@@ -1370,11 +1522,13 @@
                 // Pause at end frame, DO NOT AUTO-LOOP. Require user to perform spread arms gesture again!
                 console.log(`[State Machine] Material video finished and frozen on last frame. Waiting for next spread arms gesture.`);
                 currentState = AppState.WAITING_FOR_SPIN_RESUME;
+                syncAudioWithVideo(null);
                 
                 if (mocap) {
                     mocap.activePoseKey = 'spread_arms';
                     mocap.matchStartTime = null;
                     mocap.isPoseTriggerMode = true;
+                    mocap.resume();
                 }
                 
                 // If user leaves or stays still for 5 seconds after transition, proceed to outro
@@ -1586,16 +1740,19 @@
                 
                 const cleanEndpoint = endpoint.replace(/\/v1\/?$/, '').replace(/\/$/, '');
                 
-                // Strictly lock to Gemma Vision model
-                let modelName = "gemma4:e2b";
+                // Default to moondream as per README, fallback to gemma
+                let modelName = "moondream";
                 try {
                     const tagsRes = await fetchWithTimeout(`${cleanEndpoint}/api/tags`, { method: 'GET' }, 2000);
                     if (tagsRes.ok) {
                         const tagsJson = await tagsRes.json();
                         if (tagsJson.models && tagsJson.models.length > 0) {
-                            const gemmaModel = tagsJson.models.find(m => (m.name || m.model || '').toLowerCase().includes('gemma'));
-                            if (gemmaModel) {
-                                modelName = gemmaModel.name || gemmaModel.model;
+                            let foundModel = tagsJson.models.find(m => (m.name || m.model || '').toLowerCase().includes('moondream'));
+                            if (!foundModel) {
+                                foundModel = tagsJson.models.find(m => (m.name || m.model || '').toLowerCase().includes('gemma'));
+                            }
+                            if (foundModel) {
+                                modelName = foundModel.name || foundModel.model;
                             }
                         }
                     }
@@ -1660,10 +1817,10 @@
                     
                     const shoulderSpan = Math.abs(sLX - sRX);
                     const centerX = (sLX + sRX) / 2;
-                    minX = Math.max(5, centerX - shoulderSpan * 0.32);
-                    maxX = Math.min(155, centerX + shoulderSpan * 0.32);
-                    minY = Math.max(5, sY + 12);
-                    maxY = Math.min(155, Math.min(hY - 5, sY + shoulderSpan * 1.1));
+                    minX = Math.max(5, centerX - shoulderSpan * 0.20);
+                    maxX = Math.min(155, centerX + shoulderSpan * 0.20);
+                    minY = Math.max(5, sY + shoulderSpan * 0.15);
+                    maxY = Math.min(155, Math.min(hY - 5, sY + shoulderSpan * 0.55));
                 }
                 
                 const w = Math.max(10, Math.round(maxX - minX));
@@ -1692,36 +1849,21 @@
                         else hue = ((r / 255 - g / 255) / delta + 4) / 6;
                     }
                     const deg = hue * 360;
-                    const avgRgb = (r + g + b) / 3;
-                    const rgbDiff = Math.max(Math.abs(r - g), Math.abs(r - b), Math.abs(g - b));
+                    // Map to 0-100 scale for HSV matching to align with scratch code
+                    const h = deg;
+                    const s = sat * 100;
+                    const v = val * 100;
                     
-                    // 1. Red: Warm hue with distinct red channel dominance
-                    if (((deg <= 32 || deg >= 328) && sat >= 0.22 && val >= 0.20) || (r > g + 30 && r > b + 30 && r > 80)) {
-                        red += 1.2;
-                    }
-                    // 2. Blue: Cool hue with distinct blue channel dominance
-                    else if (((deg >= 165 && deg <= 275) && sat >= 0.20 && val >= 0.20) || (b > r + 20 && b > g + 12 && b > 70)) {
-                        blue += 1.2;
-                    }
-                    // 3. Black: Dark-to-medium brightness (Webcam auto-exposure renders black clothing at RGB 40-130 / val < 0.54)
-                    else if (val < 0.54 || avgRgb < 135 || (r < 130 && g < 130 && b < 130)) {
-                        black += 1.2;
-                    }
-                    // 4. White: Clean high-brightness pixels (RGB >= 160 & val >= 0.63)
-                    else if ((val >= 0.63 && sat < 0.28 && avgRgb >= 160) || (avgRgb >= 170 && rgbDiff < 30)) {
-                        white += 1.2;
-                    }
-                    // 5. Gray: Balanced medium brightness
-                    else if (sat < 0.25 && avgRgb >= 135 && avgRgb < 160) {
-                        gray += 1.0;
-                    }
-                    // Fallbacks
-                    else if (avgRgb >= 160) {
-                        white += 0.8;
-                    } else if (avgRgb < 135) {
-                        black += 0.8;
-                    } else {
-                        gray += 0.8;
+                    // Standard HSV decision tree from scratch version (checks saturation first to filter white/gray/black)
+                    if (v < 22) {
+                        black++;
+                    } else if (s < 30) { // Increased from 18 to 30 to tolerate red-bleed reflections on white shirts
+                        if (v > 70) white++; // Lowered from 75 to 70 to match shadowed white clothes
+                        else gray++;
+                    } else if (h < 25 || h > 335) {
+                        red++;
+                    } else if (h >= 170 && h <= 265) {
+                        blue++;
                     }
                 }
                 
@@ -1770,72 +1912,78 @@
 
             // 1. INSTANT COMPUTER VISION TORSO PIXEL SENSOR (0.005s Instant Detection)
             const instantColor = detectDominantTorsoColor(webcamElement, window.mocap?.lastLandmarks);
-            window.detectedColor = instantColor;
             
-            const instantFigurine = matchFigurineByColor(instantColor);
-            window.matchedFigurineId = instantFigurine.id;
-            updateMuseumInfoCard(instantFigurine);
-            
-            const stageImg = document.getElementById('stageFigurineImg');
-            if (stageImg && instantFigurine.reveal0sImage) {
-                stageImg.src = instantFigurine.reveal0sImage;
-            }
-            preloadSpinVideos(instantFigurine.id);
-            updateTrackingBadge("success", `衣服识别: ${window.detectedColor} (Gemma 4 视觉分析中)`);
-
-            // 2. GEMMA 4 VLM VISION RECOGNITION (Vision-Language Model Background Classification)
-            if (window.isVlmMatching) return;
-            window.isVlmMatching = true;
-
-            window.gemmaVlmPromise = (async () => {
-                try {
-                    const hiddenCanvas = document.createElement('canvas');
-                    hiddenCanvas.width = 160;
-                    hiddenCanvas.height = 160;
-                    const ctx = hiddenCanvas.getContext('2d');
-                    
-                    // Smart Torso Bbox Cropping: Crop strictly around shoulder/chest landmarks
-                    const lm = window.mocap?.lastLandmarks;
-                    const vw = webcamElement.videoWidth || 640;
-                    const vh = webcamElement.videoHeight || 480;
-                    let srcX = 0, srcY = 0, srcW = vw, srcH = vh;
-                    
-                    if (lm && lm[11] && lm[12]) {
-                        const sLX = lm[11].x * vw;
-                        const sRX = lm[12].x * vw;
-                        const sY = ((lm[11].y + lm[12].y) / 2) * vh;
-                        const shoulderSpan = Math.abs(sLX - sRX);
-                        const centerX = (sLX + sRX) / 2;
-                        
-                        srcX = Math.max(0, centerX - shoulderSpan * 0.65);
-                        srcY = Math.max(0, sY);
-                        srcW = Math.min(vw - srcX, shoulderSpan * 1.3);
-                        srcH = Math.min(vh - srcY, shoulderSpan * 1.4);
-                    }
-                    
-                    ctx.drawImage(webcamElement, srcX, srcY, srcW, srcH, 0, 0, 160, 160);
-                    const base64Image = hiddenCanvas.toDataURL('image/jpeg', 0.80).split(',')[1];
-                    const useLocalAI = document.getElementById('useLocalAI')?.checked ?? true;
-                    
-                    const result = await classifyColorWithVLM(base64Image, useLocalAI);
-                    if (result && result.mappedColor) {
-                        console.log(`[Gemma Vision 🦙] Gemma AI vision matched color: "${result.mappedColor}" (Raw: "${result.rawText}")`);
-                        window.detectedColor = result.mappedColor;
-                        const refinedFigurine = matchFigurineByColor(window.detectedColor);
-                        window.matchedFigurineId = refinedFigurine.id;
-                        updateMuseumInfoCard(refinedFigurine);
-                        if (stageImg && refinedFigurine.reveal0sImage) {
-                            stageImg.src = refinedFigurine.reveal0sImage;
-                        }
-                        preloadSpinVideos(refinedFigurine.id);
-                        updateTrackingBadge("success", `Gemma 4 视觉识别: ${window.detectedColor}`);
-                    }
-                } catch (e) {
-                    console.log("[Gemma Vision 🦙] Gemma Vision refinement skipped:", e.message);
-                } finally {
-                    window.isVlmMatching = false;
+            // Only update DOM, card details and stage image if color actually changed to avoid 30fps thrashes
+            if (instantColor !== window.detectedColor) {
+                window.detectedColor = instantColor;
+                const instantFigurine = matchFigurineByColor(instantColor);
+                window.matchedFigurineId = instantFigurine.id;
+                updateMuseumInfoCard(instantFigurine);
+                
+                const stageImg = document.getElementById('stageFigurineImg');
+                if (stageImg && instantFigurine.reveal0sImage) {
+                    stageImg.src = instantFigurine.reveal0sImage;
                 }
-            })();
+            }
+            if (window.enableVLM) {
+                updateTrackingBadge("success", `衣服识别: ${window.detectedColor} (AI 视觉分析中)`);
+
+                // 2. GEMMA 4 VLM VISION RECOGNITION (Vision-Language Model Background Classification)
+                if (window.isVlmMatching) return;
+                window.isVlmMatching = true;
+
+                window.gemmaVlmPromise = (async () => {
+                    try {
+                        const hiddenCanvas = document.createElement('canvas');
+                        hiddenCanvas.width = 160;
+                        hiddenCanvas.height = 160;
+                        const ctx = hiddenCanvas.getContext('2d');
+                        
+                        // Smart Torso Bbox Cropping: Crop strictly around shoulder/chest landmarks
+                        const lm = window.mocap?.lastLandmarks;
+                        const vw = webcamElement.videoWidth || 640;
+                        const vh = webcamElement.videoHeight || 480;
+                        let srcX = 0, srcY = 0, srcW = vw, srcH = vh;
+                        
+                        if (lm && lm[11] && lm[12]) {
+                            const sLX = lm[11].x * vw;
+                            const sRX = lm[12].x * vw;
+                            const sY = ((lm[11].y + lm[12].y) / 2) * vh;
+                            const shoulderSpan = Math.abs(sLX - sRX);
+                            const centerX = (sLX + sRX) / 2;
+                            
+                            srcX = Math.max(0, centerX - shoulderSpan * 0.65);
+                            srcY = Math.max(0, sY);
+                            srcW = Math.min(vw - srcX, shoulderSpan * 1.3);
+                            srcH = Math.min(vh - srcY, shoulderSpan * 1.4);
+                        }
+                        
+                        ctx.drawImage(webcamElement, srcX, srcY, srcW, srcH, 0, 0, 160, 160);
+                        const base64Image = hiddenCanvas.toDataURL('image/jpeg', 0.80).split(',')[1];
+                        const useLocalAI = document.getElementById('useLocalAI')?.checked ?? true;
+                        
+                        const result = await classifyColorWithVLM(base64Image, useLocalAI);
+                        if (result && result.mappedColor) {
+                            console.log(`[Gemma Vision 🦙] Gemma AI vision matched color: "${result.mappedColor}" (Raw: "${result.rawText}")`);
+                            window.detectedColor = result.mappedColor;
+                            const refinedFigurine = matchFigurineByColor(window.detectedColor);
+                            window.matchedFigurineId = refinedFigurine.id;
+                            updateMuseumInfoCard(refinedFigurine);
+                            if (stageImg && refinedFigurine.reveal0sImage) {
+                                stageImg.src = refinedFigurine.reveal0sImage;
+                            }
+                            preloadSpinVideos(refinedFigurine.id);
+                            updateTrackingBadge("success", `AI 视觉识别: ${window.detectedColor}`);
+                        }
+                    } catch (e) {
+                        console.log("[Gemma Vision 🦙] Gemma Vision refinement skipped:", e.message);
+                    } finally {
+                        window.isVlmMatching = false;
+                    }
+                })();
+            } else {
+                updateTrackingBadge("success", `衣服识别: ${window.detectedColor}`);
+            }
         }
 
         function setAwakenButtonReady(ready, color = null) {
