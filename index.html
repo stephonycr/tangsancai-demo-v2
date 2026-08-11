@@ -1083,11 +1083,7 @@
             if (promptMat) promptMat.classList.add('hidden');
             if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
             if (window.outroBannerTimer) clearTimeout(window.outroBannerTimer);
-            window.outroBannerTimer = setTimeout(() => {
-                if (currentState === AppState.OUTRO_VIDEO) {
-                    hideHuxuanPromptBanner();
-                }
-            }, 2000);
+            hideHuxuanPromptBanner(); // Hide immediately when outro video starts playing
             
             const matchedId = window.matchedFigurineId || 'white';
             const figurine = FIGURINES_DB[matchedId];
