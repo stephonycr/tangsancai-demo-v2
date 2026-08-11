@@ -441,7 +441,7 @@
             // Extract filename without path and extension
             const filename = videoSrc.split('/').pop().split('.').shift();
             
-            let mapped = filename;
+            let mapped = filename.replace('_special', '');
             
             // 1. Map character-specific filenames to generic 'color' equivalents
             const colors = ['red', 'blue', 'black', 'white', 'gray'];
@@ -710,6 +710,7 @@
         window.matchedFigurineId = 'optimal_1';
         window.aiBlessing = '岁岁平安，万事大吉';
         window.enableVLM = true;
+        window.specialStepIndex = 1; // 1, 2, or 3 (Easter egg video)
 
         // Call resetKiosk immediately when DOM is ready so video/intro.mp4 plays instantly without waiting for webcam
         document.addEventListener('DOMContentLoaded', () => {
@@ -984,6 +985,10 @@
             currentState = AppState.INTRO_REVEAL;
             window.isColorLocked = true; // Lock color prediction so late background samples cannot overwrite matched color!
             if (mocap) mocap.pause();
+            
+            // Randomly select exactly one step (1, 2, or 3) to play its special Easter egg video in this session
+            window.specialStepIndex = Math.floor(Math.random() * 3) + 1;
+            console.log(`[State Machine] Special Easter egg selected for this session: Step ${window.specialStepIndex}`);
             
             // Hide start overlay so it's not clickable anymore
             const startOverlay = document.getElementById('startOverlay');
@@ -1405,11 +1410,11 @@
             if (step === 0) {
                 spinVideoSrc = `video/${matchedId}_to_big.mp4`;
             } else if (step === 1) {
-                spinVideoSrc = "video/big_flower_to_round.mp4";
+                spinVideoSrc = (window.specialStepIndex === 1) ? "video/big_flower_to_round_special.mp4" : "video/big_flower_to_round.mp4";
             } else if (step === 2) {
-                spinVideoSrc = "video/round_to_blue_flower.mp4";
+                spinVideoSrc = (window.specialStepIndex === 2) ? "video/round_to_blue_flower_special.mp4" : "video/round_to_blue_flower.mp4";
             } else if (step === 3) {
-                spinVideoSrc = "video/blue_flower_to_stripe.mp4";
+                spinVideoSrc = (window.specialStepIndex === 3) ? "video/blue_flower_to_stripe_special.mp4" : "video/blue_flower_to_stripe.mp4";
             } else if (step === 4) {
                 spinVideoSrc = `video/stripe_to_${matchedId}.mp4`;
             }
@@ -1853,8 +1858,11 @@
             const list = [
                 `video/${colorId}_to_big.mp4`,
                 "video/big_flower_to_round.mp4",
+                "video/big_flower_to_round_special.mp4",
                 "video/round_to_blue_flower.mp4",
+                "video/round_to_blue_flower_special.mp4",
                 "video/blue_flower_to_stripe.mp4",
+                "video/blue_flower_to_stripe_special.mp4",
                 `video/stripe_to_${colorId}.mp4`,
                 `video/${colorId}_dance.mp4`,
                 `video/reveal_${colorId}.mp4`,
