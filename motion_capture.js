@@ -301,6 +301,14 @@ class MotionCaptureEngine {
             this.firstResultReceived = true;
         }
 
+        const landmarks = results.poseLandmarks || results.poseWorldLandmarks;
+
+        // Run interactive state tracking (like spin detection) as long as we have raw landmarks,
+        // even if visibility confidence is temporarily low (e.g. during a fast spin where back is turned)
+        if (landmarks) {
+            this.updateInteractiveStates(landmarks);
+        }
+
         const humanPresent = this.isHumanPresent(results);
 
         if (!humanPresent) {
@@ -354,9 +362,6 @@ class MotionCaptureEngine {
         
         this.absenceStartTime = null;
         
-        // Always use 2D normalized screen-space landmarks for pose and gesture matching!
-        const landmarks = results.poseLandmarks || results.poseWorldLandmarks;
-        
         if (this.isPoseTriggerMode) {
             this.evaluatePoseMatching(landmarks);
         } else {
@@ -364,9 +369,6 @@ class MotionCaptureEngine {
                 window.updateTrackingBadge("success", "正在实时动捕中...");
             }
         }
-        
-        // Track interactive gestures (spins, stillness) in real-time on every frame
-        this.updateInteractiveStates(landmarks);
     }
     
     /**
@@ -513,43 +515,33 @@ class MotionCaptureEngine {
             if (this.activePoseKey === 'spread_arms') {
                 let isSpread = false;
                 
-                if (hasLandmarks([11, 12, 13, 14, 15, 16])) {
-                    const shoulderDist = Math.abs(lm[11].x - lm[12].x);
-                    const wristDist = Math.abs(lm[15].x - lm[16].x);
-                    const shoulderY = (lm[11].y + lm[12].y) / 2;
+                let leftArmRaised = false;
+                if (hasLandmarks([11, 15])) {
+                    const shoulderY = (lm[11].y + (hasLandmarks([12]) ? lm[12].y : lm[11].y)) / 2;
                     let hipY = 0.80;
-                    if (lm[23] && lm[24]) hipY = (lm[23].y + lm[24].y) / 2;
-                    
-                    // 1. Both wrists must be lifted up to chest/shoulder level (above mid-torso, NOT hanging down at sides!)
+                    if (lm[23]) hipY = lm[23].y;
                     const midTorsoY = (shoulderY + hipY) / 2;
-                    const wristsLifted = (lm[15].y < midTorsoY) && (lm[16].y < midTorsoY) && 
-                                         (lm[15].y > (shoulderY - 0.40)) && (lm[16].y > (shoulderY - 0.40));
-                    
-                    // 2. Both elbows must also be raised up away from body sides
-                    const elbowsLifted = (lm[13].y < hipY - 0.05) && (lm[14].y < hipY - 0.05);
-                    
-                    // 3. Both wrists must extend significantly outwards beyond shoulders laterally
-                    const minShoulderX = Math.min(lm[11].x, lm[12].x);
-                    const maxShoulderX = Math.max(lm[11].x, lm[12].x);
-                    const minWristX = Math.min(lm[15].x, lm[16].x);
-                    const maxWristX = Math.max(lm[15].x, lm[16].x);
-                    
-                    const spreadOutwards = (minWristX < minShoulderX - 0.20 * shoulderDist) && 
-                                           (maxWristX > maxShoulderX + 0.20 * shoulderDist);
-                    
-                    // 4. Total wrist span must be very wide (>= 1.7x shoulder width)
-                    const spanWide = wristDist >= (shoulderDist * 1.7);
-                    
-                    if (wristsLifted && elbowsLifted && spreadOutwards && spanWide) {
-                        isSpread = true;
-                    }
+                    if (lm[15].y < midTorsoY) leftArmRaised = true;
+                }
+                
+                let rightArmRaised = false;
+                if (hasLandmarks([12, 16])) {
+                    const shoulderY = ((hasLandmarks([11]) ? lm[11].y : lm[12].y) + lm[12].y) / 2;
+                    let hipY = 0.80;
+                    if (lm[24]) hipY = lm[24].y;
+                    const midTorsoY = (shoulderY + hipY) / 2;
+                    if (lm[16].y < midTorsoY) rightArmRaised = true;
+                }
+                
+                if (leftArmRaised || rightArmRaised) {
+                    isSpread = true;
                 }
                 
                 if (isSpread) {
                     this.isCurrentlySpreadingArms = true;
                     if (!this.matchStartTime) {
                         this.matchStartTime = Date.now();
-                        if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("info", `张开双臂蓄力中... 请保持`);
+                        if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("info", `抬起手臂蓄力中... 请保持`);
                     } else {
                         const duration = Date.now() - this.matchStartTime;
                         const progress = Math.min(100, Math.round((duration / 700) * 100)); // 700ms hold
@@ -565,7 +557,7 @@ class MotionCaptureEngine {
                     this.isCurrentlySpreadingArms = false;
                     if (this.matchStartTime) {
                         this.matchStartTime = null;
-                        if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("warning", `请抬高手臂并张开双臂超过肩宽`);
+                        if (typeof window.updateTrackingBadge === 'function') window.updateTrackingBadge("warning", `请举起任意一只手并保持片刻`);
                     }
                 }
                 return; // Override standard angle scoring
@@ -580,22 +572,20 @@ class MotionCaptureEngine {
                 
                 // 1. LEFT wrist (15) is raised clearly above LEFT shoulder (11)
                 const leftArmRaised = hasLeft && (lm[15].y < lm[11].y);
-                
-                // 2. RIGHT wrist (16) is NOT fully raised high above the right shoulder/head
-                // Right hand can move naturally (bent, holding phone, at chest/waist) as long as it's not also raised high up
-                const rightArmNotRaisedHigh = hasRight ? (lm[16].y > (lm[12].y - 0.08)) : true;
+                // 2. RIGHT wrist (16) is raised clearly above RIGHT shoulder (12)
+                const rightArmRaised = hasRight && (lm[16].y < lm[12].y);
                 
                 if (!this.poseLogCounter) this.poseLogCounter = 0;
                 this.poseLogCounter++;
                 const shouldLogPose = (this.poseLogCounter % 30 === 0);
                 
                 if (shouldLogPose) {
-                    console.log(`[Mocap Debug] Pose optimal_1 match checking:`);
+                    console.log(`[Mocap Debug] Pose optimal_1 match checking (Raise either hand):`);
                     console.log(`  LeftArm: hasLeft=${hasLeft}, LeftWristY=${hasLeft ? lm[15].y.toFixed(2) : 'N/A'}, LeftShoulderY=${hasLeft ? lm[11].y.toFixed(2) : 'N/A'} (Raised: ${leftArmRaised})`);
-                    console.log(`  RightArm: hasRight=${hasRight}, RightWristY=${hasRight ? lm[16].y.toFixed(2) : 'N/A'}, RightShoulderY=${hasRight ? lm[12].y.toFixed(2) : 'N/A'} (NotRaisedHigh: ${rightArmNotRaisedHigh})`);
+                    console.log(`  RightArm: hasRight=${hasRight}, RightWristY=${hasRight ? lm[16].y.toFixed(2) : 'N/A'}, RightShoulderY=${hasRight ? lm[12].y.toFixed(2) : 'N/A'} (Raised: ${rightArmRaised})`);
                 }
                 
-                if (leftArmRaised && rightArmNotRaisedHigh) {
+                if (leftArmRaised || rightArmRaised) {
                     isRaised = true;
                 }
                 

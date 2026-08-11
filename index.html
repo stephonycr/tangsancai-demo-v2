@@ -17,19 +17,27 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;900&family=ZCOOL+XiaoWei&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;500;700;900&family=Noto+Serif+SC:wght@300;400;600;900&family=ZCOOL+XiaoWei&display=swap');
         
+        body, button, div, span, p, h1, h2, h3, h4, h5, h6, select, input {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        #onScreenLogger, #onScreenLogger * {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+        }
+
         .font-classical {
-            font-family: 'Ma Shan Zheng', 'ZCOOL XiaoWei', 'Noto Serif SC', 'SimSun', serif;
+            font-family: 'Noto Sans SC', sans-serif !important;
         }
         .font-calligraphy {
-            font-family: 'Ma Shan Zheng', 'ZCOOL XiaoWei', 'STKaiti', 'KaiTi', 'Noto Serif SC', serif;
+            font-family: 'Noto Sans SC', sans-serif !important;
         }
         .font-roman {
-            font-family: 'Cinzel', serif;
+            font-family: 'Noto Sans SC', sans-serif !important;
         }
         .font-tech {
-            font-family: 'Space Grotesk', sans-serif;
+            font-family: 'Noto Sans SC', sans-serif !important;
         }
         
         .gradient-bg {
@@ -222,6 +230,11 @@
                 <!-- NEW: Prompt Overlays (Dance and Material) -->
                 <img id="promptDanceImg" class="hidden absolute inset-0 w-full h-full object-contain z-30 transition-opacity duration-500 opacity-0 pointer-events-none" src="final_vid/prompt_dance.png" alt="提示跳舞" />
                 <img id="promptMaterialImg" class="hidden absolute inset-0 w-full h-full object-contain z-30 transition-opacity duration-500 opacity-0 pointer-events-none" src="final_vid/prompt_material.png" alt="提示换材质" />
+                
+                <!-- Floating Huxuan Dance/Spin Banner Prompt (Bottom Opaque, GPU Promoted) -->
+                <div id="huxuanPromptBanner" class="hidden absolute bottom-6 left-1/2 z-50 bg-black border border-[#d4af37]/30 px-8 py-3 rounded-full text-white text-base md:text-lg font-medium tracking-[0.15em] shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-opacity duration-500 opacity-0 pointer-events-none font-classical text-center leading-[1.6]" style="transform: translateX(-50%) translateZ(0); will-change: opacity, transform;">
+                    复刻舞姿 跟随旋转 共演胡旋乐舞
+                </div>
                 
                 <!-- Outro Pure White Center Blessing (State: OUTRO_VIDEO End) -->
                 <div id="outroBlessingOverlay" class="hidden absolute inset-0 z-40 flex items-center justify-center pointer-events-none transition-opacity duration-1000 opacity-0">
@@ -441,10 +454,7 @@
             if (mapped === 'curtain') {
                 mapped = 'curtain';
             }
-            // Map curtain closing to stripe_to_color BGM (so it continues playing from outro)
-            if (mapped === 'curtain_close') {
-                mapped = 'stripe_to_color';
-            }
+
             
             // 3. Alias mappings for silent videos (reuse existing audios)
             if (mapped === 'reveal_color') {
@@ -765,10 +775,8 @@
                 nextPlayer.classList.remove('opacity-100');
                 nextPlayer.classList.add('opacity-0');
                 
-                const cleanSrc = src.split('?')[0];
-                const versionedSrc = src.includes('?') ? src : `${src}?v=20260810_fresh`;
-                if (!nextPlayer.src || !nextPlayer.src.includes(cleanSrc) || nextPlayer.error || nextPlayer.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
-                    nextPlayer.src = versionedSrc;
+                if (!nextPlayer.src || !nextPlayer.src.includes(src) || nextPlayer.error || nextPlayer.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+                    nextPlayer.src = src;
                     nextPlayer.load();
                 }
                 nextPlayer.loop = loop;
@@ -802,7 +810,7 @@
                     const stageImg = document.getElementById('stageFigurineImg');
                     if (stageImg) {
                         stageImg.classList.remove('opacity-100');
-                        stageImg.classList.add('opacity-0');
+                        stageImg.classList.add('opacity-0', 'hidden');
                         stageImg.style.opacity = '0';
                     }
 
@@ -820,7 +828,11 @@
                             prevPlayer.classList.remove('opacity-100');
                             prevPlayer.classList.add('opacity-0');
                             prevPlayer.style.opacity = '0';
-                            prevPlayer.pause();
+                            try {
+                                prevPlayer.pause();
+                                prevPlayer.removeAttribute('src');
+                                prevPlayer.load();
+                            } catch(e){}
                         }, 120);
                     }
                     nextPlayer.onplaying = null;
@@ -842,6 +854,7 @@
                     };
                     nextPlayer.onended = onEndedFallback;
 
+                    let targetLogFired = false;
                     nextPlayer.ontimeupdate = function() {
                         if (!window.lastPlayProgressLog || Date.now() - window.lastPlayProgressLog > 1000) {
                             console.log(`[Play Progress] ${src}: current=${nextPlayer.currentTime.toFixed(2)}, duration=${nextPlayer.duration.toFixed(2)}, paused=${nextPlayer.paused}, speed=${nextPlayer.playbackRate}`);
@@ -895,6 +908,9 @@
                 stickerGift.classList.remove('show-sticker');
             }
             hideGuidancePrompt(); // Reset banner
+            if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
+            if (window.outroBannerTimer) clearTimeout(window.outroBannerTimer);
+            hideHuxuanPromptBanner();
             
             // Hide custom PNG prompts
             const promptDance = document.getElementById('promptDanceImg');
@@ -910,7 +926,7 @@
             if (stageImg) {
                 stageImg.style.opacity = "0";
                 stageImg.classList.remove('opacity-100');
-                stageImg.classList.add('opacity-0');
+                stageImg.classList.add('opacity-0', 'hidden');
                 // Preload white 0s image
                 stageImg.src = FIGURINES_DB['white'].reveal0sImage;
             }
@@ -976,75 +992,20 @@
 
 
 
-            // PRE-STAGE 0s SILHOUETTE IMAGE IMMEDIATELY AT z-25 (0ms Instant Display, No Black Gap)
-            if (stageImg) {
-                stageImg.src = figurine.reveal0sImage;
-                stageImg.style.zIndex = '25';
-                stageImg.style.transition = 'none';
-                stageImg.classList.remove('opacity-0', 'hidden');
-                stageImg.classList.add('opacity-100');
-                stageImg.style.opacity = '1';
-                console.log(`[State Machine] Staged 0s silhouette image at z-25 under opening curtain: ${figurine.reveal0sImage}`);
-            }
-
-            if (curtainOverlay) {
-                if (!curtainOverlay.src || !curtainOverlay.src.includes("video/curtain.mp4")) {
-                    curtainOverlay.src = "video/curtain.mp4";
-                }
-                curtainOverlay.currentTime = 0;
-                curtainOverlay.style.zIndex = '30';
-                curtainOverlay.style.mixBlendMode = 'screen'; // Screen mode makes black background transparent so stageImg at z-25 shows cleanly!
-                curtainOverlay.muted = true;
-                curtainOverlay.style.opacity = '0.99';
-                
-                try {
-                    await new Promise((resolve) => {
-                        let resolved = false;
-                        const safeResolve = () => {
-                            if (resolved) return;
-                            resolved = true;
-                            resolve();
-                        };
-                        curtainOverlay.onended = safeResolve;
-                        setTimeout(safeResolve, 3500);
-                        
-                        curtainOverlay.onplaying = () => {
-                            curtainOverlay.style.opacity = '0.99';
-                            syncAudioWithVideo("video/curtain.mp4", false);
-                            
-                            // Smoothly fade out ONLY active standby video underneath over 500ms
-                            const standbyPlayer = activePlayer;
-                            if (standbyPlayer) { 
-                                standbyPlayer.style.transition = 'opacity 500ms ease-in-out';
-                                standbyPlayer.style.opacity = '0'; 
-                                setTimeout(() => { try { standbyPlayer.pause(); } catch(e){} }, 500);
-                            }
-                        };
-
-                        curtainOverlay.play().catch(e => {
-                            console.warn("curtain overlay play failed:", e);
-                            resolve();
-                        });
-                    });
-                } finally {
-                    curtainOverlay.style.opacity = '0';
-                    curtainOverlay.pause();
-                    if (mocap) mocap.resume();
-                }
-            } else {
+            // 1. Play Curtain Video sequentially
+            console.log("[State Machine] Playing curtain video sequentially...");
+            try {
                 await playSeamlessVideo("video/curtain.mp4", false, 'normal');
+            } catch (e) {
+                console.error("[State Machine] Play curtain video failed:", e);
+            } finally {
+                // Resume mocap immediately after curtain ends
+                if (mocap) mocap.resume();
             }
-            
-            // --- 阶段 2: 帘子拉开完毕 -> 保持 stageImg 0s 图片在 z-25 垫底，由 reveal 出场视频 0ms 无缝接管（决不黑屏）---
+
+            // 2. Prepare Figurine Reveal
             const finalMatchedId = window.matchedFigurineId || matchedId || 'white';
             const finalFigurine = FIGURINES_DB[finalMatchedId] || FIGURINES_DB['white'];
-            
-            if (stageImg) {
-                stageImg.src = finalFigurine.reveal0sImage;
-                stageImg.style.transition = 'none';
-                stageImg.style.opacity = '1';
-                stageImg.style.zIndex = '25';
-            }
             console.log(`[State Machine] Curtain finished -> Playing reveal video: ${finalFigurine.revealVideo} (Color: ${finalFigurine.tags?.color || '白'})`);
             
             const showPromptCallback = () => {
@@ -1059,6 +1020,7 @@
                     void promptDance.offsetWidth; // Force reflow
                     promptDance.classList.add('opacity-100'); 
                 }
+                showHuxuanPromptBanner();
                 
                 if (mocap) {
                     mocap.isPoseTriggerMode = true; // Enable pose match challenge!
@@ -1093,6 +1055,12 @@
                         preloadSpinVideos(finalFigurine.id);
                     }
                 }, 2000);
+                if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
+                window.revealBannerTimer = setTimeout(() => {
+                    if (currentState === AppState.INTRO_REVEAL) {
+                        showHuxuanPromptBanner();
+                    }
+                }, 6000);
                 await playSeamlessVideo(finalFigurine.revealVideo, false, 'normal', showPromptCallback);
             } catch (e) {
                 console.error("[State Machine] Play reveal video failed:", e);
@@ -1107,6 +1075,13 @@
             if (promptDance) promptDance.classList.add('hidden');
             const promptMat = document.getElementById('promptMaterialImg');
             if (promptMat) promptMat.classList.add('hidden');
+            if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
+            if (window.outroBannerTimer) clearTimeout(window.outroBannerTimer);
+            window.outroBannerTimer = setTimeout(() => {
+                if (currentState === AppState.OUTRO_VIDEO) {
+                    hideHuxuanPromptBanner();
+                }
+            }, 2000);
             
             const matchedId = window.matchedFigurineId || 'white';
             const figurine = FIGURINES_DB[matchedId];
@@ -1194,14 +1169,9 @@
                 clearInterval(intervalId);
             }
             
-            // Play curtain close sequentially (opaque curtain over black background)
-            console.log("[State Machine] Starting curtain close...");
-            await closeCurtainOverlay(1.0, 4.0);
-            console.log("[State Machine] Curtain close finished.");
-
-            // Right when curtain is completely closed -> smoothly fade out white blessing text over 800ms
+            // Right when outro video ends (curtain is closed in the outro video itself) -> smoothly fade out white blessing text over 800ms
             if (blessingOverlay) {
-                console.log("[State Machine] Curtain completely closed -> Fading out blessing text overlay...");
+                console.log("[State Machine] Outro ended -> Fading out blessing text overlay...");
                 blessingOverlay.style.transition = 'opacity 800ms ease-in-out';
                 blessingOverlay.classList.remove('opacity-100');
                 blessingOverlay.classList.add('opacity-0');
@@ -1215,58 +1185,7 @@
             resetKiosk();
         }
 
-        /**
-         * Plays video/curtain_close.mp4 to close the curtain over the stage with solid blue opacity
-         */
-        async function closeCurtainOverlay(speed = 1.0, startTime = 4.0) {
-            const curtainOverlay = document.getElementById('curtainOverlayPlayer');
-            if (activePlayer) {
-                console.log(`[DEBUG] activePlayer (${activePlayer.id}): opacity=${activePlayer.style.opacity}, classList=${activePlayer.className}, paused=${activePlayer.paused}, currentTime=${activePlayer.currentTime}`);
-            }
-            if (!curtainOverlay) return;
-            
-            curtainOverlay.src = "video/curtain_close.mp4";
-            curtainOverlay.currentTime = startTime;
-            curtainOverlay.style.zIndex = '30';
-            curtainOverlay.style.mixBlendMode = 'normal';
-            curtainOverlay.muted = true;
-            curtainOverlay.style.opacity = '1.0';
-            curtainOverlay.playbackRate = speed;
-            
-            const remainingPlayTime = (6.90 - startTime) / speed;
-            const timeoutMs = (remainingPlayTime + 0.6) * 1000;
-            
-            try {
-                await new Promise((resolve) => {
-                    let resolved = false;
-                    const finish = () => {
-                        if (!resolved) {
-                            resolved = true;
-                            clearTimeout(safetyTimeout);
-                            curtainOverlay.onplaying = null;
-                            curtainOverlay.onended = null;
-                            resolve();
-                        }
-                    };
-                    const safetyTimeout = setTimeout(() => {
-                        console.warn(`curtain close onended timeout fallback triggered (speed=${speed}, start=${startTime})`);
-                        finish();
-                    }, timeoutMs); 
-                    
-                    curtainOverlay.onplaying = () => {
-                        syncAudioWithVideo("video/curtain_close.mp4", false, startTime, speed);
-                    };
-                    curtainOverlay.onended = finish;
-                    curtainOverlay.play().catch(e => {
-                        console.warn("curtain close play failed:", e);
-                        finish();
-                    });
-                });
-            } catch(e) {
-                console.warn("curtain close error:", e);
-            }
-            // Maintain curtainOverlay at opacity: 1 holding solid blue curtain until intro.mp4 starts rendering!
-        }
+
 
         // ================= DYNAMIC GOLD DUST SPARKS & EMBERS CANVAS =================
         let blessingSparksAnimId = null;
@@ -1558,6 +1477,31 @@
                 card.classList.remove('opacity-0', 'translate-y-4');
                 card.classList.add('opacity-100', 'translate-y-0');
             }, 300);
+        }
+
+        function showHuxuanPromptBanner() {
+            const banner = document.getElementById('huxuanPromptBanner');
+            if (banner && banner.classList.contains('hidden')) {
+                console.log("[Banner Prompt] Fading in huxuan prompt banner...");
+                banner.classList.remove('hidden');
+                void banner.offsetWidth; // Force reflow
+                banner.classList.remove('opacity-0');
+                banner.classList.add('opacity-100');
+            }
+        }
+
+        function hideHuxuanPromptBanner() {
+            const banner = document.getElementById('huxuanPromptBanner');
+            if (banner && !banner.classList.contains('hidden') && !banner.classList.contains('opacity-0')) {
+                console.log("[Banner Prompt] Fading out huxuan prompt banner...");
+                banner.classList.remove('opacity-100');
+                banner.classList.add('opacity-0');
+                setTimeout(() => {
+                    if (banner.classList.contains('opacity-0')) {
+                        banner.classList.add('hidden');
+                    }
+                }, 500);
+            }
         }
 
         function showGuidancePrompt(text) {
