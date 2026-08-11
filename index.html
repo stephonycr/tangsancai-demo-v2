@@ -40,6 +40,10 @@
             font-family: 'Noto Sans SC', sans-serif !important;
         }
         
+        .font-songti-classical {
+            font-family: 'Noto Serif SC', 'ZCOOL XiaoWei', 'SimSun', serif !important;
+        }
+        
         .gradient-bg {
             background: radial-gradient(circle at center, #1c1c18 0%, #060605 100%) !important;
             background-color: #060605 !important;
@@ -231,8 +235,8 @@
                 <img id="promptDanceImg" class="hidden absolute inset-0 w-full h-full object-contain z-30 transition-opacity duration-500 opacity-0 pointer-events-none" src="final_vid/prompt_dance.png" alt="提示跳舞" />
                 <img id="promptMaterialImg" class="hidden absolute inset-0 w-full h-full object-contain z-30 transition-opacity duration-500 opacity-0 pointer-events-none" src="final_vid/prompt_material.png" alt="提示换材质" />
                 
-                <!-- Floating Huxuan Dance/Spin Banner Prompt (Bottom Opaque, GPU Promoted) -->
-                <div id="huxuanPromptBanner" class="hidden absolute bottom-6 left-1/2 z-50 bg-black border border-[#d4af37]/30 px-24 py-4 rounded-full text-white text-xl md:text-2xl font-medium tracking-[0.5em] shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-opacity duration-500 opacity-0 pointer-events-none font-classical text-center leading-[1.6]" style="transform: translateX(-50%) translateZ(0); will-change: opacity, transform;">
+                <!-- Floating Huxuan Dance/Spin Banner Prompt (Bottom Opaque, GPU Promoted, Songti style) -->
+                <div id="huxuanPromptBanner" class="hidden absolute bottom-6 left-1/2 z-50 bg-black border border-[#d4af37]/30 px-24 py-4 rounded-full text-[#ebd3a3] text-xl md:text-2xl font-semibold tracking-[0.12em] shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-opacity duration-500 opacity-0 pointer-events-none font-songti-classical text-center leading-[1.6]" style="transform: translateX(-50%) translateZ(0); will-change: opacity, transform;">
                     复刻舞姿 跟随旋转 共演胡旋乐舞
                 </div>
                 
