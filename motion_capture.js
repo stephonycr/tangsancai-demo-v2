@@ -844,6 +844,7 @@ class MotionCaptureEngine {
                             
                             // Trigger global window callback
                             if (typeof window.onUserSpin === 'function') {
+                                console.log('[USER TRIGGER 🟢] User triggered: SPIN');
                                 window.onUserSpin();
                             }
                         }

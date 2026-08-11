@@ -1310,7 +1310,11 @@
 
                 // If user leaves frame, or is still (hands down) for 5 seconds
                 if (currentState === AppState.WAITING_FOR_SPIN || currentState === AppState.WAITING_FOR_SPIN_RESUME || currentState === AppState.STANDBY_WAIT) {
-                    console.log(`[State Machine] User ${isAbsent ? 'left the scene' : 'is still for 5s'} -> OUTRO_VIDEO`);
+                    if (isAbsent) {
+                        console.log(`[USER TRIGGER 🔴] User triggered: ABSENCE (Left the frame) -> Outro`);
+                    } else {
+                        console.log(`[USER TRIGGER 🔴] User triggered: STILLNESS (Hands down / Still for 5s) -> Outro`);
+                    }
                     playOutroVideo();
                 }
             };
@@ -2011,10 +2015,12 @@
             mocap.onPoseSuccess = function(poseKey) {
                 console.log(`[Mocap Callback] Pose success! PoseKey: ${poseKey}`);
                 if (poseKey === 'spread_arms') {
+                    console.log(`[USER TRIGGER 🟢] User triggered: Raise Hand (for Material Transition / spread_arms)`);
                     if (typeof window.onUserSpin === 'function') {
                         window.onUserSpin();
                     }
                 } else {
+                    console.log(`[USER TRIGGER 🟢] User triggered: Raise Hand (for Awaken / optimal_1)`);
                     triggerMainDance();
                 }
             };
