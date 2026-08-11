@@ -1424,6 +1424,12 @@
             } else if (step === 4) {
                 spinVideoSrc = `video/stripe_to_${matchedId}.mp4`;
             }
+            if (step === 4) {
+                const banner = document.getElementById('huxuanPromptBanner');
+                if (banner) {
+                    banner.innerText = "体验结束，感谢您的参与";
+                }
+            }
             
             console.log(`[State Machine] Playing spin transition video (Step ${step + 1}/5): ${spinVideoSrc}`);
             
@@ -1437,19 +1443,14 @@
             const showMatPromptCallback = () => {
                 const step = spinVideoIndex % 5;
                 if (step === 4) {
-                    console.log("[State Machine] Step 5/5 transition video finished (stripe_to_color) -> Loop cancelled. Freezing for 2s before OUTRO...");
+                    console.log("[State Machine] Step 5/5 transition video finished (stripe_to_color) -> Loop cancelled. Freezing for 1s before OUTRO...");
                     spinVideoIndex = 0; // Reset index
                     currentState = AppState.WAITING_FOR_OUTRO_DELAY;
                     
-                    const banner = document.getElementById('huxuanPromptBanner');
-                    if (banner) {
-                        banner.innerText = "体验结束，感谢您的参与";
-                    }
-                    
                     window.outroDelayTimer = setTimeout(() => {
-                        console.log("[State Machine] 2s freeze finished. Triggering OUTRO.");
+                        console.log("[State Machine] 1s freeze finished. Triggering OUTRO.");
                         playOutroVideo();
-                    }, 2000);
+                    }, 1000);
                     return; // Exit early
                 }
                 
