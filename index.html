@@ -492,13 +492,13 @@
                 // If this BGM is already playing, let it continue without restarting!
                 if (globalAudioPlayer.src && globalAudioPlayer.src.includes(audioSrc) && !globalAudioPlayer.paused) {
                     console.log(`[Audio Sync] BGM ${audioSrc} is already playing. Continuing...`);
-                    globalAudioPlayer.loop = true;
+                    globalAudioPlayer.loop = loop;
                     globalAudioPlayer.playbackRate = speed;
                     return;
                 }
-                console.log(`[Audio Sync] Playing BGM: ${audioSrc} (loop=true, seek=${seekTime}s, speed=${speed}x)`);
+                console.log(`[Audio Sync] Playing BGM: ${audioSrc} (loop=${loop}, seek=${seekTime}s, speed=${speed}x)`);
                 globalAudioPlayer.src = audioSrc;
-                globalAudioPlayer.loop = true;
+                globalAudioPlayer.loop = loop;
                 globalAudioPlayer.volume = 0.6;
                 globalAudioPlayer.currentTime = seekTime;
                 globalAudioPlayer.playbackRate = speed; // Sync audio playback speed
