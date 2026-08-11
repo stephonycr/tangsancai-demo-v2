@@ -238,7 +238,10 @@
                 
                 <!-- Outro Pure White Center Blessing (State: OUTRO_VIDEO End) -->
                 <div id="outroBlessingOverlay" class="hidden absolute inset-0 z-40 flex items-center justify-center pointer-events-none transition-opacity duration-1000 opacity-0">
-                    <div id="outroBlessingText" class="font-sans text-3xl md:text-5xl font-normal tracking-[0.2em] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] text-center leading-[1.8] flex flex-col items-center justify-center space-y-1.5 select-none">
+                    <!-- Backdrop blue curtain image -->
+                    <div class="absolute inset-0 bg-cover bg-center pointer-events-none" style="background-image: url('assets/images/outro_curtain.jpg');"></div>
+                    
+                    <div id="outroBlessingText" class="relative z-10 font-sans text-3xl md:text-5xl font-normal tracking-[0.2em] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] text-center leading-[1.8] flex flex-col items-center justify-center space-y-1.5 select-none">
                         <div>舞 动 千 年</div>
                         <div>华 彩 乐 章</div>
                     </div>
@@ -1117,73 +1120,56 @@
                 `;
             }
 
-            let blessingShown = false;
-            let currentMonitorPlayer = null;
-
-            // Monitor active player playback time
-            const timeMonitor = () => {
-                if (!currentMonitorPlayer) {
-                    if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 1000) {
-                        console.log("[State Machine] timeMonitor: currentMonitorPlayer is NULL");
-                        window.lastTimeMonitorLog = Date.now();
-                    }
-                    return;
-                }
-                if (currentMonitorPlayer.duration <= 0 || isNaN(currentMonitorPlayer.duration)) {
-                    if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 1000) {
-                        console.log(`[State Machine] timeMonitor: invalid duration=${currentMonitorPlayer.duration}, readyState=${currentMonitorPlayer.readyState}`);
-                        window.lastTimeMonitorLog = Date.now();
-                    }
-                    return;
-                }
-                
-                const remaining = currentMonitorPlayer.duration - currentMonitorPlayer.currentTime;
-
-                // Throttled progress log
-                if (!window.lastTimeMonitorLog || Date.now() - window.lastTimeMonitorLog > 500) {
-                    console.log(`[State Machine] timeMonitor: remaining=${remaining.toFixed(2)}, current=${currentMonitorPlayer.currentTime.toFixed(2)}, duration=${currentMonitorPlayer.duration.toFixed(2)}, paused=${currentMonitorPlayer.paused}`);
-                    window.lastTimeMonitorLog = Date.now();
-                }
-
-                // 1. Show blessing text ONLY at the last 2.0 seconds of the outro video!
-                if (remaining <= 2.0 && !blessingShown && blessingOverlay) {
-                    blessingShown = true;
-                    console.log(`[State Machine] Outro video last 2s -> Fading in blessing text: "${randomBlessing}"`);
-                    blessingOverlay.classList.remove('hidden');
-                    void blessingOverlay.offsetWidth;
-                    startBlessingSparks();
-                    blessingOverlay.classList.remove('opacity-0');
-                    blessingOverlay.classList.add('opacity-100');
-                }
-            };
-
-            const intervalId = setInterval(timeMonitor, 100);
+            
+            // Set up transition parameters on the overlay container directly
+            if (blessingOverlay) {
+                blessingOverlay.style.opacity = '0';
+                blessingOverlay.style.transition = 'opacity 1000ms ease-in-out';
+            }
 
             try {
                 // Play outro video normally to the end (default 0.06s freeze is fine, it will be black)
                 const outroPromise = playSeamlessVideo(outroVid, false, 'normal');
-                currentMonitorPlayer = activePlayer;
                 await outroPromise;
-                console.log("[State Machine] Outro video finished (faded to black). Proceeding to curtain close...");
+                console.log("[State Machine] Outro video finished. Showing backdrop curtain image and starting blessing sequence...");
             } catch (e) {
                 console.error("[State Machine] Play outro failed:", e);
-            } finally {
-                clearInterval(intervalId);
             }
             
-            // Let the blessing text linger on screen for an additional 2 seconds after the outro finishes
-            console.log("[State Machine] Outro ended -> Pausing for 2s to let user read blessing text...");
+            // 1. Outro ended -> Show blessing overlay containing the backdrop curtain.
+            // Start transparent so we can smoothly fade in the curtain and the text together.
+            if (blessingOverlay) {
+                blessingOverlay.classList.remove('hidden');
+                blessingOverlay.style.transition = 'opacity 1000ms ease-in-out';
+                blessingOverlay.classList.remove('opacity-100');
+                blessingOverlay.classList.add('opacity-0');
+                blessingOverlay.style.opacity = '0';
+                void blessingOverlay.offsetWidth; // Force reflow
+                
+                // Fade in over 1s
+                console.log(`[State Machine] Fading in backdrop curtain and blessing text: "${randomBlessing}"`);
+                startBlessingSparks();
+                blessingOverlay.classList.remove('opacity-0');
+                blessingOverlay.classList.add('opacity-100');
+                blessingOverlay.style.opacity = '1';
+                
+                // Wait for the 1s fade-in transition to complete
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // 2. Let the blessing text and curtain linger on screen for 2 seconds
+            console.log("[State Machine] Blessing sequence active -> Lingering for 2s...");
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Right when outro video ends (curtain is closed in the outro video itself) -> smoothly fade out white blessing text over 800ms
+            // 3. Smoothly fade out the blessing overlay and curtain over 1s (1000ms)
             if (blessingOverlay) {
-                console.log("[State Machine] Outro ended -> Fading out blessing text overlay...");
-                blessingOverlay.style.transition = 'opacity 800ms ease-in-out';
+                console.log("[State Machine] Lingering finished -> Fading out blessing overlay...");
+                blessingOverlay.style.transition = 'opacity 1000ms ease-in-out';
                 blessingOverlay.classList.remove('opacity-100');
                 blessingOverlay.classList.add('opacity-0');
                 blessingOverlay.style.opacity = '0';
                 stopBlessingSparks();
-                await new Promise(resolve => setTimeout(resolve, 800));
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 blessingOverlay.classList.add('hidden');
             }
             
