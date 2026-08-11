@@ -1810,8 +1810,9 @@
                     const s = sat * 100;
                     const v = val * 100;
                     
-                    // Standard HSV decision tree from scratch version (checks saturation first to filter white/gray/black)
-                    if (v < 22) {
+                    // Standard HSV decision tree from scratch version
+                    // Raised black threshold from 22 to 33 to tolerate camera auto-exposure gain boosting black clothes into dark gray
+                    if (v < 33) {
                         black++;
                     } else if (s < 30) { // Increased from 18 to 30 to tolerate red-bleed reflections on white shirts
                         if (v > 70) white++; // Lowered from 75 to 70 to match shadowed white clothes
