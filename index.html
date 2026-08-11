@@ -695,6 +695,7 @@
             SPIN_TRANSITION: 'SPIN_TRANSITION',     // Sequential spin transition video (spin_X.mp4) playing
             SPIN_LOOPING: 'SPIN_LOOPING',           // Holding spread arms, looping spin videos
             WAITING_FOR_SPIN_RESUME: 'WAITING_FOR_SPIN_RESUME', // Hands dropped, 5s grace period
+            WAITING_FOR_OUTRO_DELAY: 'WAITING_FOR_OUTRO_DELAY', // 5s freeze after stripe_to_color before outro
             OUTRO_VIDEO: 'OUTRO_VIDEO',             // Video 5 (Outro & Curtain Close) playing
             STICKER_GIFT: 'STICKER_GIFT'            // Video 5 ended, showing sticker card
         };
@@ -910,6 +911,7 @@
             hideGuidancePrompt(); // Reset banner
             if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
             if (window.outroBannerTimer) clearTimeout(window.outroBannerTimer);
+            if (window.outroDelayTimer) clearTimeout(window.outroDelayTimer);
             hideHuxuanPromptBanner();
             
             // Hide custom PNG prompts
@@ -1309,11 +1311,15 @@
                 }
 
                 // If user leaves frame, or is still (hands down) for 5 seconds
-                if (currentState === AppState.WAITING_FOR_SPIN || currentState === AppState.WAITING_FOR_SPIN_RESUME || currentState === AppState.STANDBY_WAIT) {
+                if (currentState === AppState.WAITING_FOR_SPIN || currentState === AppState.WAITING_FOR_SPIN_RESUME || currentState === AppState.STANDBY_WAIT || currentState === AppState.WAITING_FOR_OUTRO_DELAY) {
                     if (isAbsent) {
                         console.log(`[USER TRIGGER 🔴] User triggered: ABSENCE (Left the frame) -> Outro`);
                     } else {
                         console.log(`[USER TRIGGER 🔴] User triggered: STILLNESS (Hands down / Still for 5s) -> Outro`);
+                    }
+                    if (window.outroDelayTimer) {
+                        clearTimeout(window.outroDelayTimer);
+                        window.outroDelayTimer = null;
                     }
                     playOutroVideo();
                 }
@@ -1429,6 +1435,20 @@
             }
             
             const showMatPromptCallback = () => {
+                const step = spinVideoIndex % 5;
+                if (step === 4) {
+                    console.log("[State Machine] Step 5/5 transition video finished (stripe_to_color) -> Loop cancelled. Freezing for 5s before OUTRO...");
+                    spinVideoIndex = 0; // Reset index
+                    currentState = AppState.WAITING_FOR_OUTRO_DELAY;
+                    syncAudioWithVideo(null);
+                    
+                    window.outroDelayTimer = setTimeout(() => {
+                        console.log("[State Machine] 5s freeze finished. Triggering OUTRO.");
+                        playOutroVideo();
+                    }, 5000);
+                    return; // Exit early
+                }
+                
                 if (promptMat) {
                     promptMat.classList.remove('hidden');
                     void promptMat.offsetWidth;
