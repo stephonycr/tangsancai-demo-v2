@@ -912,6 +912,10 @@
             if (window.revealBannerTimer) clearTimeout(window.revealBannerTimer);
             if (window.outroBannerTimer) clearTimeout(window.outroBannerTimer);
             if (window.outroDelayTimer) clearTimeout(window.outroDelayTimer);
+            const banner = document.getElementById('huxuanPromptBanner');
+            if (banner) {
+                banner.innerText = "复刻舞姿 跟随旋转 共演胡旋乐舞";
+            }
             hideHuxuanPromptBanner();
             
             // Hide custom PNG prompts
@@ -1441,6 +1445,11 @@
                     spinVideoIndex = 0; // Reset index
                     currentState = AppState.WAITING_FOR_OUTRO_DELAY;
                     syncAudioWithVideo(null);
+                    
+                    const banner = document.getElementById('huxuanPromptBanner');
+                    if (banner) {
+                        banner.innerText = "体验结束，感谢您的参与";
+                    }
                     
                     window.outroDelayTimer = setTimeout(() => {
                         console.log("[State Machine] 5s freeze finished. Triggering OUTRO.");
