@@ -1815,8 +1815,13 @@
                     if (v < 33) {
                         black++;
                     } else if (s < 30) { // Increased from 18 to 30 to tolerate red-bleed reflections on white shirts
-                        if (v > 70) white++; // Lowered from 75 to 70 to match shadowed white clothes
-                        else gray++;
+                        // Pink protection: If saturation is between 15 and 30, and hue points to red/pink, classify as red
+                        if (s >= 15 && (h < 25 || h > 335)) {
+                            red++;
+                        } else {
+                            if (v > 70) white++; // Lowered from 75 to 70 to match shadowed white clothes
+                            else gray++;
+                        }
                     } else if (h < 25 || h > 335) {
                         red++;
                     } else if (h >= 170 && h <= 265) {
