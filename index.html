@@ -238,7 +238,7 @@
                 
                 <!-- Outro Pure White Center Blessing (State: OUTRO_VIDEO End) -->
                 <div id="outroBlessingOverlay" class="hidden absolute inset-0 z-40 flex items-center justify-center pointer-events-none transition-opacity duration-1000 opacity-0">
-                    <div id="outroBlessingText" class="font-sans text-xl md:text-3xl font-normal tracking-[0.2em] text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] text-center leading-[1.8] flex flex-col items-center justify-center space-y-1.5 select-none">
+                    <div id="outroBlessingText" class="font-sans text-3xl md:text-5xl font-normal tracking-[0.2em] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] text-center leading-[1.8] flex flex-col items-center justify-center space-y-1.5 select-none">
                         <div>舞 动 千 年</div>
                         <div>华 彩 乐 章</div>
                     </div>
@@ -1170,6 +1170,10 @@
             } finally {
                 clearInterval(intervalId);
             }
+            
+            // Let the blessing text linger on screen for an additional 2 seconds after the outro finishes
+            console.log("[State Machine] Outro ended -> Pausing for 2s to let user read blessing text...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             // Right when outro video ends (curtain is closed in the outro video itself) -> smoothly fade out white blessing text over 800ms
             if (blessingOverlay) {
