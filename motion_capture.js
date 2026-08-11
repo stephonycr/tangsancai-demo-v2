@@ -251,12 +251,23 @@ class MotionCaptureEngine {
      * Evaluates whether key landmarks indicate a real human is present in the frame
      */
     isHumanPresent(results) {
-        if (!results || !results.poseLandmarks || results.poseLandmarks.length < 29) {
+        if (!this.logCounter) this.logCounter = 0;
+        this.logCounter++;
+        const shouldLog = (this.logCounter % 60 === 0);
+
+        if (!results || !results.poseLandmarks) {
+            if (shouldLog) console.log("[Mocap Debug] No poseLandmarks returned by MediaPipe");
+            return false;
+        }
+        if (results.poseLandmarks.length < 29) {
+            if (shouldLog) console.log("[Mocap Debug] poseLandmarks length too small:", results.poseLandmarks.length);
             return false;
         }
         const lm = results.poseLandmarks;
-        // Key landmarks: Left/Right Shoulder, Left/Right Hip
-        if (!lm[11] || !lm[12] || !lm[0]) return false;
+        if (!lm[11] || !lm[12] || !lm[0]) {
+            if (shouldLog) console.log("[Mocap Debug] Missing key landmarks (0, 11, 12):", !!lm[0], !!lm[11], !!lm[12]);
+            return false;
+        }
         
         const keyIndices = [0, 11, 12, 23, 24]; // Nose, Shoulders and Hips
         let totalVis = 0;
@@ -267,12 +278,18 @@ class MotionCaptureEngine {
                 count++;
             }
         }
-        if (count < 3) return false;
+        if (count < 3) {
+            if (shouldLog) console.log("[Mocap Debug] Count of visible key landmarks too low:", count);
+            return false;
+        }
         const avgVis = totalVis / count;
         const shoulderDist = Math.abs(lm[11].x - lm[12].x);
         
-        // Require face & shoulders to have high visibility (>=0.75) and person to be close enough (shoulderDist >= 0.10)
-        return avgVis >= 0.75 && shoulderDist >= 0.10 && (lm[11].visibility >= 0.70 && lm[12].visibility >= 0.70);
+        const ok = avgVis >= 0.75 && shoulderDist >= 0.10 && (lm[11].visibility >= 0.70 && lm[12].visibility >= 0.70);
+        if (!ok && shouldLog) {
+            console.log(`[Mocap Debug] Human fail details: avgVis=${avgVis.toFixed(2)} (req>=0.75), shoulderDist=${shoulderDist.toFixed(3)} (req>=0.10), leftShVis=${lm[11].visibility?.toFixed(2)} (req>=0.70), rightShVis=${lm[12].visibility?.toFixed(2)} (req>=0.70)`);
+        }
+        return ok;
     }
 
     /**
@@ -558,12 +575,25 @@ class MotionCaptureEngine {
             if (this.activePoseKey === 'optimal_1') {
                 let isRaised = false;
                 
+                const hasLeft = hasLandmarks([15, 11]);
+                const hasRight = hasLandmarks([16, 12]);
+                
                 // 1. LEFT wrist (15) is raised clearly above LEFT shoulder (11)
-                const leftArmRaised = hasLandmarks([15, 11]) && (lm[15].y < lm[11].y);
+                const leftArmRaised = hasLeft && (lm[15].y < lm[11].y);
                 
                 // 2. RIGHT wrist (16) is NOT fully raised high above the right shoulder/head
                 // Right hand can move naturally (bent, holding phone, at chest/waist) as long as it's not also raised high up
-                const rightArmNotRaisedHigh = hasLandmarks([16, 12]) ? (lm[16].y > (lm[12].y - 0.08)) : true;
+                const rightArmNotRaisedHigh = hasRight ? (lm[16].y > (lm[12].y - 0.08)) : true;
+                
+                if (!this.poseLogCounter) this.poseLogCounter = 0;
+                this.poseLogCounter++;
+                const shouldLogPose = (this.poseLogCounter % 30 === 0);
+                
+                if (shouldLogPose) {
+                    console.log(`[Mocap Debug] Pose optimal_1 match checking:`);
+                    console.log(`  LeftArm: hasLeft=${hasLeft}, LeftWristY=${hasLeft ? lm[15].y.toFixed(2) : 'N/A'}, LeftShoulderY=${hasLeft ? lm[11].y.toFixed(2) : 'N/A'} (Raised: ${leftArmRaised})`);
+                    console.log(`  RightArm: hasRight=${hasRight}, RightWristY=${hasRight ? lm[16].y.toFixed(2) : 'N/A'}, RightShoulderY=${hasRight ? lm[12].y.toFixed(2) : 'N/A'} (NotRaisedHigh: ${rightArmNotRaisedHigh})`);
+                }
                 
                 if (leftArmRaised && rightArmNotRaisedHigh) {
                     isRaised = true;
