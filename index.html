@@ -1066,7 +1066,7 @@
                     if (currentState === AppState.INTRO_REVEAL) {
                         showHuxuanPromptBanner();
                     }
-                }, 6000);
+                }, 10000);
                 await playSeamlessVideo(finalFigurine.revealVideo, false, 'normal', showPromptCallback);
             } catch (e) {
                 console.error("[State Machine] Play reveal video failed:", e);
