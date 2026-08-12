@@ -791,8 +791,14 @@
                 nextPlayer.ontimeupdate = null; // Clear old listeners
                 nextPlayer.onended = null;
                 
-                // Mute all videos to avoid browser autoplay/concurrency restrictions
-                nextPlayer.muted = true;
+                // Mute all videos by default to avoid browser restrictions, EXCEPT special Easter egg videos!
+                if (src.includes('_special.mp4')) {
+                    console.log(`[Video System] Unmuting special video: ${src}`);
+                    nextPlayer.muted = false;
+                    nextPlayer.volume = 1.0;
+                } else {
+                    nextPlayer.muted = true;
+                }
                 
                 let isFinished = false;
                 const finish = () => {
